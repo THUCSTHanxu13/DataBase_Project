@@ -10,6 +10,7 @@ class DataType {
 	protected:
 		int length;
 		std::string type;
+		std::string name;
 
 	public:
 		DataType() {}
@@ -17,7 +18,15 @@ class DataType {
 		void setType(std::string type) {
 			this -> type = type;
 		}
+
+		void setName(std::string name) {
+			this -> name = name;
+		}
 		
+		std::string getName() {
+			return name;
+		}
+
 		std::string getType() {
 			return type;
 		}
@@ -36,7 +45,8 @@ class Int : public DataType {
 	int value;
 
 	public:
-		Int(std::string type) {
+		Int(std::string name, std::string type) {
+			this -> name = name;
 			this -> type = type;
 			value = 0;
 			this -> length = 4;
@@ -63,7 +73,8 @@ class VarChar : public DataType {
 	char *value;
 	
 	public:
-		VarChar(std::string type, int len = 1) {
+		VarChar(std::string name, std::string type, int len = 1) {
+			this -> name = name;
 			this -> type = type;
 			this -> length = len;
 			value = (char *)calloc(len, sizeof(char));

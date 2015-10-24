@@ -15,9 +15,5 @@
 using namespace std;
 
 int main() {
-	DataFileManager manager("database");
-	DataStruct a();
-	a.InitialData("Int");
-		a.InitialData("Int");
 	return 0;
 }
