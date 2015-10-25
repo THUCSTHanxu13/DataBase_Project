@@ -134,6 +134,31 @@ class DataFileManager {
 			return result[2] >= size + 4;
 		}
 
+		void delPageInHeaderPage(int fileID, int pageID, int page, DataStruct table) {
+			int size = table.getStructSize();
+			int index;
+			BufType result = getPage(fileID, pageID, index);
+			for (int i = 1; i <= result[2047]; i++)
+				if (result[2047 - i] > result[2047 - page + pageID]) {
+					int offset = result[2047 - i] - result[2047 - page + pageID];
+					for (int j = result[2047 - i]; j < result[0]; j++)
+						*((char *)result + PAGE_HEADER + j - offset) = *((char *)result + PAGE_HEADER + j);
+					break;
+				}
+			result[0] -= size;
+			result[2047 - page + pageID] = -1;
+			result[2] += 4 + size;
+			if (page - pageID == result[2047]) result[2047]--;
+			bpm->access(index);
+		}
+
+		void delPage(int fileID, int pageID) {
+			int index;
+			BufType result = getPage(fileID, pageID, index);
+
+			bpm->access(index);
+		}
+
 	public:
 
 		DataFileManager() {
@@ -147,10 +172,9 @@ class DataFileManager {
 			if (access(path.c_str(), 0) != -1) {
 				fm -> createFile(path.c_str());
 			}
-			fm->openFile("testfile.txt", fileID);
+			fm->openFile(path.c_str(), fileID);
 			bpm = new BufPageManager(fm);
-			BufType b = bpm->allocPage(fileID, 0, index, false);
-			b[0] = 1; b[1] = 0; b[2] = 0; b[2047] = 0;
+			newHeaderPage(fileID, 0, 0);
 			bpm->markDirty(index);
 			bpm -> close();
 			fm -> closeFile(fileID);
@@ -179,7 +203,7 @@ class DataFileManager {
 			bpm->markDirty(index); 
 		}
 
-		void searchPage(DataStruct table) {
+		void searchPage(int fileID, DataStruct table) {
 			std::string name = table.getTableName();
 			int index;
 			int pageNumber = 0;
@@ -202,7 +226,7 @@ class DataFileManager {
 			}
 		}
 
-		void pushPage(DataStruct table) {
+		void pushPage(int fileID, DataStruct table) {
 			std::string name = table.getTableName();
 			int index;
 			int pageNumber = 0;
@@ -236,6 +260,10 @@ class DataFileManager {
 				pageHeader = getPage(fileID, pageNxt, index);
 				pageNumber = pageNxt;
 			}
+		}
+
+		void delPageTable(int fileID, DataStruct table) {
+
 		}
 
 		~DataFileManager() {
