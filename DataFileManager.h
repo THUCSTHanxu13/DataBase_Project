@@ -9,173 +9,100 @@
 class DataFileManager {
 
 	private:
-		std::string path;
 		FileManager* fm;
 		BufPageManager* bpm;
 		int fileID;
+		Table table;
 
-		std::string readString(void *src) {
-			int len = *(int *)(src);
-			src = (char *)src + 4;
-			std::string tableName = "";
-			for (int i = 0; i < len; i++)
-				tableName = tableName + *((char*)src + i);
-			return tableName;
-		}
-
-		int readInteger(void *src) {
-			return *(int *)(src);
-		}
-
-		BufType getPage(int fileID, int pageID, int &index) {
-			BufType result = bpm->getPage(fileID, pageID, index);
-			bpm->access(index);
-			return result;
-		}
-
-		void searchPage(int fileID, int pageID, DataStruct table) {
-			int index;
-			BufType result = getPage(fileID, pageID, index);
-			void *header = (char *)result + PAGE_HEADER;
-			for (int i = result[2047]; i > 0; i--) {
-				int j = result[2047 -  i];
-				if (result[j] != -1 && table.checkData((char *)header + result[j])) {
-				}
+		void writeString(char * &last, std::string name) {
+			int len = name.length();
+			memcpy(last, &len, 4);
+			last = last + 4;
+			for (int i = 0; i < len; i++) {
+				*last = name[i];
+				last = last + 1;
 			}
-			bpm->access(index);
 		}
 
-		void newEmptyPage(int fileID, int pageID) {
-			int index;
-			BufType result = bpm->allocPage(fileID, pageID, index, false);
-			memset(result, 0, MAX_PAGE_SIZE);
-			result[2047] = 0;
-			result[0] = 0;
-			result[1] = 0;
-			result[2] = 8192 - PAGE_HEADER - 4;
-			bpm->access(index);
-			bpm -> markDirty(index);
-		}
-
-		void writePage(int fileID, int pageID, DataStruct table) {
-			int index;
-			BufType result = getPage(fileID, pageID, index);
-			int headOffset = PAGE_HEADER + result[0];
-			int size = table.getSize();
-			int contentTot = result[2047];
-			int tailOffset = 8192 - result[2047] * 4 - 8;
-			if (tailOffset - headOffset >= size) {
-				result[2047]++;
-				result[2047 - result[2047]] = result[0];
-			} else {
-				for (int i = result[2047]; i > 0; i--)
-					if (result[2047 - i] == -1) {
-						result[2047 - i] = result[0];
-						break;
-					}
+		std::string readString(char * &last, int len) {
+			std::string res = "";
+			for (int i = 0; i < len; i++) {
+				res = res + *last;
+				last++;
 			}
-			table.writeToBuffer((char *)result + headOffset);
-			result[0] += size;
-			result[1] ++;
-			result[2] -= size + 4;
-			bpm->access(index);
-			bpm -> markDirty(index);
+			return res;
+		}
+
+		int readInteger(char * &last) {
+			int res = *(int *)(last);
+			last = last + 4;
+			return res;
+		}
+
+		void writeInteger(char * &last, int len) {
+			memcpy(last, &len, 4);
+			last = last + 4;			
 		}
 
 		void newHeaderPage(int fileID, int pageID, int lastPage) {
 			int index;
 			BufType result = bpm->allocPage(fileID, pageID, index, false);
 			memset(result, 0, MAX_PAGE_SIZE);
-			result[0] = 0;
-			result[1] = 1;
-			result[2] = 8192 - PAGE_HEADER - 4;
-			result[3] = lastPage;
-			result[4] = 0;
-			result[2047] = 0;
+			int header = 1;
+			result[0 + header] = table.size;
+			result[1 + header] = -1;
+			char * last = (char *)result + 8 + header * 4;
+			for (int i = 0; i < table.name.size(); i++) {
+				if (table.primarykey == table.name[i]) result[header + 1] = table.name.size() - i - 1; 
+				writeString(last, table.name[i]);
+				writeInteger(last, table.len[i]);
+				writeInteger(last, table.empty[i]);
+				if (table.type[i] == "int") writeInteger(last, 0); else writeInteger(last, 1);
+			}
+			result[0] = last - (char*)(result);
 			bpm->access(index);
 			bpm->markDirty(index);
 		}
 
-		void writeHeaderPage(int fileID, int pageID, DataStruct table) {
-			char *con = (char *)calloc(MAX_PAGE_SIZE, sizeof(char));
-			int size = table.getStruct(con);
+		void getHeaderPage(int fileID, int pageID, int lastPage) {
 			int index;
-			BufType result = getPage(fileID, pageID, index);
-			int headOffset = PAGE_HEADER + result[0];
-			int tableTot = result[2047];
-			int tailOffset = 8192 - result[2047] * 4 - 8;
-			if (tailOffset - headOffset >= size) {
-				result[2047]++;
-				result[2047 - result[2047]] = result[0];
-				newEmptyPage(fileID, pageID + result[2047]);
-				writePage(fileID, pageID + result[2047], table);
-			} else {
-				for (int i = result[2047]; i > 0; i--)
-					if (result[2047 - i] == -1) {
-						result[2047 - i] = result[0];
-						newEmptyPage(fileID, pageID + result[2047 - i]);
-						writePage(fileID, pageID + result[2047 - i], table);
-						break;
-					}
+			BufType result = bpm->getPage(fileID, pageID, index);
+			int header = 1;
+			table.size = result[0 + header];
+			char * last = (char *)result + 8 + header * 4;
+			char * end = (char *)result + result[0];
+			while (last != end) {
+				int len = readInteger(last);
+				table.name.push_back(readString(last, len));
+				table.len.push_back(readInteger(last));
+				table.empty.push_back(readInteger(last));
+				table.sum++;
+				if (readInteger(last) == 0) table.type.push_back("int"); else table.type.push_back("varchar");
 			}
-			memcpy(result, con, size);
-			result[0] += size;
-			result[1] ++;
-			result[2] -= size + 4;
-			bpm->access(index);
-			bpm -> markDirty(index);
-			free(con);
-		}
-
-		bool checkWritePage(int fileID, int pageID, int size) {
-			int index;
-			BufType result = getPage(fileID, pageID, index);
-			bpm->access(index);
-			return result[2] >= size + 4;
-		}
-
-		void delPageInHeaderPage(int fileID, int pageID, int page, DataStruct table) {
-			int size = table.getStructSize();
-			int index;
-			BufType result = getPage(fileID, pageID, index);
-			for (int i = 1; i <= result[2047]; i++)
-				if (result[2047 - i] > result[2047 - page + pageID]) {
-					int offset = result[2047 - i] - result[2047 - page + pageID];
-					for (int j = result[2047 - i]; j < result[0]; j++)
-						*((char *)result + PAGE_HEADER + j - offset) = *((char *)result + PAGE_HEADER + j);
-					break;
-				}
-			result[0] -= size;
-			result[2047 - page + pageID] = -1;
-			result[2] += 4 + size;
-			if (page - pageID == result[2047]) result[2047]--;
-			bpm->access(index);
-		}
-
-		void delPage(int fileID, int pageID) {
-			int index;
-			BufType result = getPage(fileID, pageID, index);
-
+			if (result[1 + header] != -1)
+				table.primarykey = table.name[result[1 + header]];
 			bpm->access(index);
 		}
 
 	public:
+		std::string path;
 
 		DataFileManager() {
 			fm = NULL;
 			bpm = NULL;
 		}
 
+		void setTable(Table table) {
+			this->table = table;
+		}
+
 		void createFile() {
 			int index;
 			fm = new FileManager();
-			if (access(path.c_str(), 0) != -1) {
-				fm -> createFile(path.c_str());
-			}
+			fm->createFile(path.c_str());
 			fm->openFile(path.c_str(), fileID);
 			bpm = new BufPageManager(fm);
 			newHeaderPage(fileID, 0, 0);
-			bpm->markDirty(index);
 			bpm -> close();
 			fm -> closeFile(fileID);
 			delete bpm;
@@ -185,90 +112,43 @@ class DataFileManager {
 		}
 
 		void openFile() {
-			if (access(path.c_str(), 0) != -1)
-				createFile();
+			int index;
 			fm = new FileManager();
-			bpm = new BufPageManager(fm);
 			fm->openFile(path.c_str(), fileID);
+			bpm = new BufPageManager(fm);
+			getHeaderPage(fileID, 0, 0);
+			bpm -> close();
+			fm -> closeFile(fileID);
+			delete bpm;
+			delete fm;
+			bpm = NULL;
+			fm = NULL;
 		}
 
 		void setFile(std::string route) {
 			path = route;
 		}
 
-		void setPage(int fileID, int pageID, void *dst, int offset = 0, int len = 8192) {
-			int index;
-			BufType result = bpm->getPage(fileID, pageID, index);
-			memcpy(result, (char *)dst + offset, len);
-			bpm->markDirty(index); 
-		}
-
-		void searchPage(int fileID, DataStruct table) {
-			std::string name = table.getTableName();
-			int index;
-			int pageNumber = 0;
-			BufType pageHeader = getPage(fileID, 0, index);
-			while (true) {
-				int pageTot = pageHeader[1];
-				int pagePre = pageHeader[3];
-				int pageNxt = pageHeader[4];
-				int tableTot = pageHeader[2047];
-				for (int i = 1; i <= tableTot; i++) {
-					int offset = pageHeader[2047 - i];
-					if (offset == -1) continue;
-					void *src = (char *)pageHeader + PAGE_HEADER + offset;
-					std::string tableName = readString((char *)src);
-					if (tableName == name) searchPage(fileID, pageNumber + i, table);
-				}
-				if (pageNxt == 0) break;
-				pageHeader = getPage(fileID, pageNxt, index);
-				pageNumber = pageNxt;
+		void showTable() {
+			for (int i = 0; i < table.name.size(); i++) {
+				printf("%s ", table.name[i].c_str());
+				printf("%s ",table.type[i].c_str());
+				printf("(%d) ", table.len[i]);
+				if (!table.empty[i]) printf("NOT NULL ");
+				printf("\n");
 			}
+			if (table.primarykey != "") printf("PRIMARY KEY (%s)\n", table.primarykey.c_str());
 		}
 
-		void pushPage(int fileID, DataStruct table) {
-			std::string name = table.getTableName();
-			int index;
-			int pageNumber = 0;
-			int size = table.getSize();
-			BufType pageHeader = getPage(fileID, 0, index);
-			while (true) {
-				int pageTot = pageHeader[1];
-				int pagePre = pageHeader[3];
-				int pageNxt = pageHeader[4];
-				int tableTot = pageHeader[2047];
-				for (int i = 1; i <= tableTot; i++) {
-					int offset = pageHeader[2047 - i];
-					if (offset == -1) continue;
-					void *src = (char *)pageHeader + PAGE_HEADER + offset;
-					std::string tableName = readString((char *)src);
-					if (tableName == name)
-						if (checkWritePage(fileID, pageNumber + i, size)) {
-							writePage(fileID, pageNumber + i, table);
-							break;
-						}
-				}
-				if (pageNxt == 0) {
-					if (checkWritePage(fileID, pageNumber, table.getStructSize())) {
-						writeHeaderPage(fileID, pageNumber + pageTot, table);	
-					} else {
-						newHeaderPage(fileID, pageNumber + pageTot, pageNumber);
-						writeHeaderPage(fileID, pageNumber + pageTot, table);
-					}
-					break;
-				}
-				pageHeader = getPage(fileID, pageNxt, index);
-				pageNumber = pageNxt;
-			}
-		}
-
-		void delPageTable(int fileID, DataStruct table) {
-
+		void insert(std::vector<std::string> content) {
+			// for (int i = 0; i < content.size(); i++)
+			// 	printf("%s ", content[i].c_str());
+			// printf("\n");
 		}
 
 		~DataFileManager() {
-			bpm->close();
-			fm -> closeFile(fileID);
+			if (bpm != NULL) bpm->close();
+			if (fm != NULL) fm -> closeFile(fileID);
 		}
 };
 
