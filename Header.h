@@ -32,7 +32,8 @@ struct Table{
 		this -> type.push_back(typ);
 		this -> len.push_back(le);
 		this -> empty.push_back(empty);
-		this -> size += le;
+		if (typ == "int") this->size += 4+4; else 
+		this -> size += le + 4;
 		this -> sum++;
 	}
 };

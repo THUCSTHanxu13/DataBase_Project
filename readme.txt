@@ -1,4 +1,6 @@
-源代码在bufmanager fileio utils目录下，还有testfilesystem.cpp
-可执行在Debug目录下，运行命令
-$./testfilesystem
-开发环境可以用eclipse
+main下面是入口
+Header是头文件定义
+DataType是基本类型整形以及字符的封装
+DataStruct是表单的封装
+DataFileManager是读写表单的封装
+main为解释器

@@ -11,9 +11,11 @@ class DataType {
 		int length;
 		std::string type;
 		std::string name;
+		int empty;
 
 	public:
 		DataType() {}
+		~DataType() {}
 
 		void setType(std::string type) {
 			this -> type = type;
@@ -34,29 +36,36 @@ class DataType {
 		int getSize() {
 			return length;
 		}
+
+		void setEmpty(int con) {
+			empty = con;
+		}
 		
-		virtual void writeToBuffer(void *src, int offset = 0, int len = MAX_BUFFER_SIZE);
-		virtual void readFromBuffer(void *src, int offset = 0, int len = MAX_BUFFER_SIZE);
-		virtual bool checkBuffer(void *src, int offset = 0);
+		virtual void writeToBuffer(void *src, int offset = 0, int len = MAX_BUFFER_SIZE) {};
+		virtual void readFromBuffer(const void *src, int offset = 0, int len = MAX_BUFFER_SIZE) {};
+		virtual bool checkBuffer(void *src, int offset = 0) {};
 };
 
 class Int : public DataType {
-	
-	int value;
 
 	public:
+		int value;
+
 		Int(std::string name, std::string type) {
 			this -> name = name;
 			this -> type = type;
 			value = 0;
 			this -> length = 4;
+			this -> empty = 1;
 		}
 		
-		void readFromBuffer(void *src, int offset = 0, int len = MAX_BUFFER_SIZE) {
+		void readFromBuffer(const void *src, int offset = 0, int len = MAX_BUFFER_SIZE) {
 			value = *(int *)((char *)src + offset);
 		}
 
 		void writeToBuffer(void *src, int offset = 0, int len = MAX_BUFFER_SIZE) {
+			*(int *)((char*)src + offset) = empty;
+			offset += 4;
 			*(int *)((char *)src + offset) = value;
 		}
 
@@ -70,23 +79,28 @@ class Int : public DataType {
 
 class VarChar : public DataType {
 
-	char *value;
 	
 	public:
+		char *value;
+
 		VarChar(std::string name, std::string type, int len = 1) {
 			this -> name = name;
 			this -> type = type;
 			this -> length = len;
 			value = (char *)calloc(len, sizeof(char));
+			this -> empty = 1;
 		}
 		
-		void readFromBuffer(void *src, int offset = 0, int len = MAX_BUFFER_SIZE) {
+		void readFromBuffer(const void *src, int offset = 0, int len = MAX_BUFFER_SIZE) {
+			memset(value, '\0', sizeof(value));
 			if (length < len) len = length;
 			for (int i = 0; i < len; i++)
 				value[i] = *((char *)src + offset + i);			
 		}
 
 		void writeToBuffer(void *src, int offset = 0, int len = MAX_BUFFER_SIZE) {
+			*(int *)((char*)src + offset) = empty;
+			offset += 4;
 			if (length < len) len = length;
 			for (int i = 0; i < len; i++)
 				*((char *)src + offset + i) = value[i];

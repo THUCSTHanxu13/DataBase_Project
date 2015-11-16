@@ -8,7 +8,7 @@
 class DataStruct {
 
 		std::vector<std::string> checkNameList;
-		std::vector<DataType> dataList;
+		std::vector<DataType *> dataList;
 		std::vector<int> lenList;
 		std::map<std::string, int> DataName;
 		int length;
@@ -37,6 +37,8 @@ class DataStruct {
 			length = 0;
 			structLength = name.length() + 4 + 4;
 			this -> name = name;
+			for (int i = dataList.size() -1; i >= 0; i--)
+				delete dataList[i];
 			dataList.clear();
 			lenList.clear();
 		}
@@ -64,22 +66,22 @@ class DataStruct {
 			dst = writeString(name, dst);
 			dst = writeInteger(length, dst);
 			for (int i = 0; i < dataList.size(); i++) {
-				dst = writeString(dataList[i].getType(), dst);
-				dst = writeString(dataList[i].getName(), dst);
+				dst = writeString(dataList[i]->getType(), dst);
+				dst = writeString(dataList[i]->getName(), dst);
 			}
 			return (char *)start - (char *)dst;
 		}
 
 		void addDataType(std::string name, std::string type, int len = 0) {
-			if (type == "Int") {
-				dataList.push_back(Int(name, "Int"));
+			if (type == "int") {
+				dataList.push_back(new Int(name, "Int"));
 				lenList.push_back(length);
 				DataName[name] = dataList.size() - 1;
 				length += 4;
 				structLength += 4 + 3 + 4 + name.length();
 			} else
-			if (type == "VarChar") {
-				dataList.push_back(VarChar(name, "VarChar", len));
+			if (type == "varchar") {
+				dataList.push_back(new VarChar(name, "VarChar", len));
 				lenList.push_back(length);
 				DataName[name] = dataList.size() - 1;
 				length += len;
@@ -88,17 +90,32 @@ class DataStruct {
 		}
 
 		void setData(std::string name, void* src, int offset = 0, int len = MAX_BUFFER_SIZE) {
-			dataList[DataName[name]].readFromBuffer(src, offset, len);
+			dataList[DataName[name]]->readFromBuffer(src, offset, len);
+		}
+
+		void setData(std::string name, std::string type, std::string content) {
+			if (type == "int") {
+				if (content == "NULL") dataList[DataName[name]]->setEmpty(1); else {
+					dataList[DataName[name]]->setEmpty(0); 
+					int num = atoi(content.c_str());
+					dataList[DataName[name]]->readFromBuffer(&num, 0, 4);
+				}
+			} else {
+				if (content == "NULL") dataList[DataName[name]]->setEmpty(1); else {
+					dataList[DataName[name]]->setEmpty(0); 
+					dataList[DataName[name]]->readFromBuffer(content.c_str(), 0, content.length());
+				}
+			}
 		}
 
 		void getData(std::string name, void*dst, int offset = 0, int len = MAX_BUFFER_SIZE) {
-			dataList[DataName[name]].writeToBuffer(dst, offset, len);			
+			dataList[DataName[name]]->writeToBuffer(dst, offset, len);			
 		}
 
 		void readFromBuffer(void*src, int offset = 0, int len = MAX_BUFFER_SIZE) {
 			src = (char *)src + offset;
 			for (int i = 0; i < dataList.size(); i++) {
-				DataType *con = &dataList[i];
+				DataType *con = dataList[i];
 				int size = con -> getSize();
 				len -= size;
 				if (len > 0)
@@ -114,7 +131,7 @@ class DataStruct {
 		void writeToBuffer(void *dst, int offset = 0, int len = MAX_BUFFER_SIZE) {
 			dst = (char *)dst + offset;
 			for (int i = 0; i < dataList.size(); i++) {
-				DataType *con = &dataList[i];
+				DataType *con = dataList[i];
 				int size = con -> getSize();
 				len -= size;
 				if (len > 0)
@@ -123,7 +140,7 @@ class DataStruct {
 					con -> writeToBuffer(dst, 0, len + size);
 					break;
 				}
-				dst = (char *)dst + size;
+				dst = (char *)dst + size + 4;
 			}
 		}
 
@@ -133,13 +150,13 @@ class DataStruct {
 
 		void addChecker(std::string name, void* position, int len = 0) {
 			checkNameList.push_back(name);
-			dataList[DataName[name]].writeToBuffer(position, 0, len);
+			dataList[DataName[name]]->writeToBuffer(position, 0, len);
 		}
 
 		bool checkData(std::vector<std::string> nameList, void *position) {
 			for (int i = nameList.size() - 1; i >= 0; i--) {
 				int j = DataName[nameList[i]];
-				if (dataList[j].checkBuffer(((char *)position + lenList[j]))) return false;
+				if (dataList[j]->checkBuffer(((char *)position + lenList[j]))) return false;
 			}
 			return true;
 		}

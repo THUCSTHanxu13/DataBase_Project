@@ -5,7 +5,6 @@
 #include <string>
 #include <cstdlib>
 #include <iostream>
-#include "DataStruct.h"
 #include "bufmanager/BufPageManager.h"
 #include "fileio/FileManager.h"
 #include "utils/pagedef.h"
@@ -19,7 +18,7 @@ class DBManger {
 	std::vector<std::string> dbList;
 	std::vector<std::string> tbList;
 	std::string pathName;
-	std::vector<DataFileManager> tbFileManager;
+	std::vector<DataFileManager*> tbFileManager;
 	FILE * file, *fileDB;
 	bool DBOpenFlag;
 
@@ -125,6 +124,8 @@ public:
 	}
 
 	~DBManger() {
+		for (int i = 0; i < tbFileManager.size(); i++)
+			delete tbFileManager[i];
 		backDbList();
 		if (DBOpenFlag) {
 			DBOpenFlag = false;
@@ -298,10 +299,10 @@ public:
 
 	int DataFileManagerIndex(std::string &name) {
 		for (int i = tbFileManager.size() - 1; i >= 0; i--)
-			if (tbFileManager[i].path == pathName + name) return i;
-		DataFileManager dataFileManager;
-		dataFileManager.setFile(pathName + name);
-		dataFileManager.openFile();
+			if (tbFileManager[i]->path == pathName + name) return i;
+		DataFileManager *dataFileManager = new DataFileManager();
+		dataFileManager->setFile(pathName + name);
+		dataFileManager->openFile();
 		tbFileManager.push_back(dataFileManager);
 		return tbFileManager.size() - 1;
 	}
@@ -314,14 +315,12 @@ public:
 		int dataFileManagerIndex = DataFileManagerIndex(name);
 		std::string condition = "";
 		std::vector<std::string> content;
+		bool flag = false;
 		while (lef < len) {
 			char tip =  inst[lef++];
 			if (tip == ')') {
-				if (condition[0] == '\'' && condition[condition.length()-1] == '\'') 
-					content.push_back(condition.substr(1, condition.length() - 2)); 
-				else
-					content.push_back(condition);
-				tbFileManager[dataFileManagerIndex].insert(content);
+				content.push_back(condition);
+				tbFileManager[dataFileManagerIndex]->insert(content);
 				condition = "";
 			} else
 			if (tip == '(') {
@@ -330,14 +329,15 @@ public:
 			} else 
 			if (tip == ',')
 			{
-				if (condition[0] == '\'' && condition[condition.length()-1] == '\'') 
-					content.push_back(condition.substr(1, condition.length() - 2)); 
-				else
-					content.push_back(condition);
+				content.push_back(condition);
 				condition = "";
 			} else
-			if (check(tip))
+			if (tip == '\'') {
+				flag = not flag;
+			} else 
+			if (flag || check(tip)) {
 				condition = condition + tip;
+			}
 		}
 	}
 

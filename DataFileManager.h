@@ -1,6 +1,7 @@
 #ifndef FILEMANAGER_H
 #define FILEMANAGER_H
 #include "DataStruct.h"
+#include "DataType.h"
 #include "bufmanager/BufPageManager.h"
 #include "fileio/FileManager.h"
 #include "utils/pagedef.h"
@@ -9,8 +10,6 @@
 class DataFileManager {
 
 	private:
-		FileManager* fm;
-		BufPageManager* bpm;
 		int fileID;
 		Table table;
 
@@ -84,12 +83,26 @@ class DataFileManager {
 			bpm->access(index);
 		}
 
+		void newPage(int fileID, int pageID) {
+			int index;
+			BufType result = bpm->allocPage(fileID, pageID, index, false);
+			memset(result, 0, MAX_PAGE_SIZE);
+			result[0] = PAGE_HEADER * 4;
+			result[1] = MAX_PAGE_SIZE - PAGE_HEADER * 4 - 4;
+			bpm->access(index);
+			bpm->markDirty(index);
+		}
+
 	public:
 		std::string path;
+		DataStruct *dataStruct;
+		FileManager* fm;
+		BufPageManager* bpm;
 
 		DataFileManager() {
 			fm = NULL;
 			bpm = NULL;
+			dataStruct = new DataStruct("gg");
 		}
 
 		void setTable(Table table) {
@@ -117,12 +130,9 @@ class DataFileManager {
 			fm->openFile(path.c_str(), fileID);
 			bpm = new BufPageManager(fm);
 			getHeaderPage(fileID, 0, 0);
-			bpm -> close();
-			fm -> closeFile(fileID);
-			delete bpm;
-			delete fm;
-			bpm = NULL;
-			fm = NULL;
+			for (int i = 0; i < table.name.size(); i++) {
+				dataStruct -> addDataType(table.name[i], table.type[i], table.len[i]);
+			}
 		}
 
 		void setFile(std::string route) {
@@ -141,14 +151,53 @@ class DataFileManager {
 		}
 
 		void insert(std::vector<std::string> content) {
-			// for (int i = 0; i < content.size(); i++)
-			// 	printf("%s ", content[i].c_str());
-			// printf("\n");
+			int index;
+			BufType result = bpm->getPage(fileID, 0, index);
+			int page = 0;
+			for (int i = 1; i <= result[2047]; i++)
+				if (result[2047 - i] == 0) {
+					page = i;
+				}
+			if (page == 0) {
+				result[2047]++;
+				result[2047 - result[2047]] = 0;
+				page = result[2047];
+				newPage(fileID, page);
+			}
+			int index1 = index;
+			BufType res = result;
+			for (int i = 0; i < content.size(); i++) {
+				dataStruct ->setData(table.name[i], table.type[i], content[i]);
+			}
+			result = bpm->getPage(fileID, page, index);
+			if (result[0] + table.size + 4 < (2047 - result[2047]) * 4) {
+				result[1] = result[1] - table.size - 4;
+				result[2047]++;
+				result[2047 - result[2047]] = result[0];
+				dataStruct -> writeToBuffer((char *)result +  result[0] , 0, table.size);
+				result[0] = result[0] + table.size;
+			} else {
+				for (int i = 1; i <= result[2047]; i++)
+					if (result[2047 - i] == -1) {
+						result[2047 - i] = result[2047 - i + 1] + table.size;
+						result[1] = result[1] - table.size;
+						dataStruct -> writeToBuffer((char *)result + result[2047 - i], 0, table.size);
+						break;
+					}
+			}
+			if (result[1] <= table.size + 4) {
+				res[2047 - page] = 1;
+			}
+			bpm->access(index1);
+			bpm->markDirty(index1);
+			bpm->access(index);
+			bpm->markDirty(index);			
 		}
 
 		~DataFileManager() {
-			if (bpm != NULL) bpm->close();
-			if (fm != NULL) fm -> closeFile(fileID);
+			if (bpm != NULL) {bpm->close();delete bpm;}
+			if (fm != NULL) {fm -> closeFile(fileID);delete fm;}
+			if (dataStruct != NULL) delete(dataStruct);
 		}
 };
 
