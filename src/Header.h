@@ -1,7 +1,10 @@
 #ifndef HEADER_H
 #define HEADER_H
+#include <iostream>
 #include <string>
+#include <cstdio>
 #include <vector>
+#include "Entity.h"
 
 const int MAX_BUFFER_SIZE = 8000;
 const int MAX_PAGE_SIZE = 8192;
@@ -16,6 +19,8 @@ struct Table{
 	int sum;
 	int size;
 	std::string primarykey;
+	std::vector<std::string> checkNameLists;
+	std::vector<std::vector<PriceEntity> > checkValueLists ;
 
 	Table() {
 		name.clear();
@@ -36,6 +41,12 @@ struct Table{
 		this -> size += le + 4;
 		this -> sum++;
 	}
+
+	void push(std::string nam, std::vector<PriceEntity> entity) {
+		checkNameLists.push_back(nam);
+		checkValueLists.push_back(entity);
+	}
 };
+
 
 #endif
