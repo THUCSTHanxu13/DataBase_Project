@@ -92,7 +92,8 @@ class VarChar : public DataType {
 		}
 		
 		void readFromBuffer(const void *src, int offset = 0, int len = MAX_BUFFER_SIZE) {
-			memset(value, '\0', sizeof(value));
+			for (int i = 0; i < length; i++)
+				value[i] = '\0';
 			if (length < len) len = length;
 			for (int i = 0; i < len; i++)
 				value[i] = *((char *)src + offset + i);			

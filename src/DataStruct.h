@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 
+
 class DataStruct {
 
 		std::vector<std::string> checkNameList;
@@ -31,7 +32,42 @@ class DataStruct {
 			return dst;
 		}
 
+		int readInteger(void *dst) {
+			return *(int *)(dst);
+		}
+
+		std::string readString(char *dst, int len) {
+			std::string res = "";
+			for (int i  = 0; i < len; i++) {
+				if (*(dst+i) == '\0') break;
+				res = res + *(dst + i);
+			}
+			return res;
+		}
+
 	public:
+
+		RebackTable loadFromBuffer(char * src) {
+			RebackTable res;
+			for (int i = 0; i < dataList.size(); i++) {
+				int empty = readInteger(src);
+				src = src + 4;
+				RebackEntity entity;
+				if (dataList[i] -> getType() == "Int") {
+					int num = readInteger(src);
+					src = src + 4;
+					entity.setInteger(num);
+				} else {
+					int len = dataList[i]->getSize();
+					std::string con = readString(src, len);
+					src = src + len;
+					entity.setString(con);
+				}
+				entity.setEmpty(empty);
+				res.setEntity(dataList[i] -> getName(), entity);
+			}
+			return res;
+		}
 
 		DataStruct(std::string name) {
 			length = 0;
@@ -93,19 +129,24 @@ class DataStruct {
 			dataList[DataName[name]]->readFromBuffer(src, offset, len);
 		}
 
-		void setData(std::string name, std::string type, std::string content) {
+		void setData(std::string name, std::string type, std::string content, int empty = 0) {
+			if (empty) dataList[DataName[name]]->setEmpty(1); else
 			if (type == "int") {
-				if (content == "NULL") dataList[DataName[name]]->setEmpty(1); else {
 					dataList[DataName[name]]->setEmpty(0); 
 					int num = atoi(content.c_str());
 					dataList[DataName[name]]->readFromBuffer(&num, 0, 4);
-				}
 			} else {
-				if (content == "NULL") dataList[DataName[name]]->setEmpty(1); else {
 					dataList[DataName[name]]->setEmpty(0); 
 					dataList[DataName[name]]->readFromBuffer(content.c_str(), 0, content.length());
-				}
 			}
+		}
+
+		void setData(std::string name, std::string type, int content,int empty = 0) {
+			std::stringstream ss;
+			std::string str;
+			ss<<content;
+			ss>>str;
+			setData(name, type, str, empty);
 		}
 
 		void getData(std::string name, void*dst, int offset = 0, int len = MAX_BUFFER_SIZE) {

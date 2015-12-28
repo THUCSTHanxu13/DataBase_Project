@@ -1,6 +1,5 @@
-main下面是入口
-Header是头文件定义
-DataType是基本类型整形以及字符的封装
-DataStruct是表单的封装
-DataFileManager是读写表单的封装
-main为解释器
+所有解析均由lex与yacc负责
+lex.l 词法解析
+yacc.y句法解析
+解析的同时调用底层文件系统进行处理
+编译方式 bash make.sh即可
