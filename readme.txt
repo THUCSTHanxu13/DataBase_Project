@@ -1,6 +1,0 @@
-main下面是入口
-Header是头文件定义
-DataType是基本类型整形以及字符的封装
-DataStruct是表单的封装
-DataFileManager是读写表单的封装
-main为解释器
